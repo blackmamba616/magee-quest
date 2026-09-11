@@ -1,0 +1,356 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Magee Quest - Level 1</title>
+<style>
+html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:Arial}
+canvas{display:block;width:100%;height:100%;touch-action:none}
+#ui{position:fixed;inset:0;pointer-events:none}
+.btn{
+ position:absolute;bottom:25px;width:78px;height:78px;border-radius:50%;
+ background:#ffffffaa;border:3px solid #222;display:flex;align-items:center;
+ justify-content:center;font-size:34px;font-weight:bold;color:#222;
+ pointer-events:auto;user-select:none;-webkit-user-select:none
+}
+#left{left:22px} #right{left:112px}
+#jump{right:24px;width:92px;height:92px;background:#ffe66dcc}
+#title{
+ position:absolute;top:14px;left:50%;transform:translateX(-50%);
+ background:#0009;color:white;padding:8px 16px;border-radius:14px;
+ font-weight:bold;font-size:18px
+}
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div id="ui">
+ <div id="title">MAGEE QUEST — LEVEL 1</div>
+ <div id="left" class="btn">◀</div>
+ <div id="right" class="btn">▶</div>
+ <div id="jump" class="btn">▲</div>
+</div>
+
+<script>
+const canvas=document.getElementById("game");
+const ctx=canvas.getContext("2d");
+
+let W,H;
+function resize(){
+ W=canvas.width=innerWidth*devicePixelRatio;
+ H=canvas.height=innerHeight*devicePixelRatio;
+ ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);
+ W=innerWidth; H=innerHeight;
+}
+addEventListener("resize",resize);
+resize();
+
+const worldW=2400;
+const groundY=H-115;
+
+const player={
+ x:80,y:groundY-52,w:34,h:52,
+ vx:0,vy:0,speed:.72,max:6.2,
+ jump:-13.2,onGround:false,facing:1
+};
+
+let cameraX=0;
+let coins=0;
+let won=false;
+
+const platforms=[
+ {x:0,y:groundY,w:520,h:140},
+ {x:610,y:groundY-35,w:240,h:175},
+ {x:930,y:groundY,w:300,h:140},
+ {x:1320,y:groundY-70,w:220,h:210},
+ {x:1630,y:groundY,w:320,h:140},
+ {x:2030,y:groundY-40,w:370,h:180},
+
+ {x:290,y:groundY-115,w:120,h:22},
+ {x:720,y:groundY-150,w:125,h:22},
+ {x:1090,y:groundY-125,w:120,h:22},
+ {x:1450,y:groundY-190,w:110,h:22},
+ {x:1780,y:groundY-125,w:120,h:22}
+];
+
+const coinList=[
+ {x:340,y:groundY-155,taken:false},
+ {x:760,y:groundY-190,taken:false},
+ {x:1130,y:groundY-165,taken:false},
+ {x:1490,y:groundY-230,taken:false},
+ {x:1820,y:groundY-165,taken:false},
+ {x:2170,y:groundY-95,taken:false}
+];
+
+const goal={x:2290,y:groundY-150,w:24,h:150};
+
+const keys={left:false,right:false,jump:false};
+
+function bind(id,key){
+ const el=document.getElementById(id);
+ const down=e=>{e.preventDefault();keys[key]=true};
+ const up=e=>{e.preventDefault();keys[key]=false};
+ el.addEventListener("touchstart",down,{passive:false});
+ el.addEventListener("touchend",up,{passive:false});
+ el.addEventListener("touchcancel",up,{passive:false});
+ el.addEventListener("mousedown",down);
+ el.addEventListener("mouseup",up);
+ el.addEventListener("mouseleave",up);
+}
+bind("left","left");
+bind("right","right");
+bind("jump","jump");
+
+addEventListener("keydown",e=>{
+ if(e.key==="ArrowLeft"||e.key==="a")keys.left=true;
+ if(e.key==="ArrowRight"||e.key==="d")keys.right=true;
+ if(e.key==="ArrowUp"||e.key===" "||e.key==="w")keys.jump=true;
+});
+addEventListener("keyup",e=>{
+ if(e.key==="ArrowLeft"||e.key==="a")keys.left=false;
+ if(e.key==="ArrowRight"||e.key==="d")keys.right=false;
+ if(e.key==="ArrowUp"||e.key===" "||e.key==="w")keys.jump=false;
+});
+
+function reset(){
+ player.x=80;
+ player.y=groundY-52;
+ player.vx=0;
+ player.vy=0;
+ cameraX=0;
+}
+
+function rectHit(a,b){
+ return a.x<b.x+b.w &&
+ a.x+a.w>b.x &&
+ a.y<b.y+b.h &&
+ a.y+a.h>b.y;
+}
+
+let jumpHeld=false;
+
+function update(){
+ if(won)return;
+
+ if(keys.left){
+  player.vx-=player.speed;
+  player.facing=-1;
+ }
+ if(keys.right){
+  player.vx+=player.speed;
+  player.facing=1;
+ }
+
+ if(!keys.left&&!keys.right)player.vx*=.78;
+ player.vx=Math.max(-player.max,Math.min(player.max,player.vx));
+
+ if(keys.jump && player.onGround && !jumpHeld){
+  player.vy=player.jump;
+  player.onGround=false;
+ }
+ jumpHeld=keys.jump;
+
+ // Floatier Mario-like jump
+ let gravity=.58;
+ if(player.vy<0 && keys.jump)gravity=.34;
+ if(player.vy>0)gravity=.5;
+
+ player.vy+=gravity;
+ if(player.vy>12)player.vy=12;
+
+ player.x+=player.vx;
+
+ if(player.x<0)player.x=0;
+ if(player.x>worldW-player.w)player.x=worldW-player.w;
+
+ const oldY=player.y;
+ player.y+=player.vy;
+ player.onGround=false;
+
+ for(const p of platforms){
+  if(
+   player.x+player.w>p.x &&
+   player.x<p.x+p.w &&
+   oldY+player.h<=p.y &&
+   player.y+player.h>=p.y
+  ){
+   player.y=p.y-player.h;
+   player.vy=0;
+   player.onGround=true;
+  }
+ }
+
+ if(player.y>H+250)reset();
+
+ for(const c of coinList){
+  if(!c.taken){
+   const box={x:c.x-12,y:c.y-12,w:24,h:24};
+   if(rectHit(player,box)){
+    c.taken=true;
+    coins++;
+   }
+  }
+ }
+
+ if(player.x+player.w>goal.x){
+  won=true;
+ }
+
+ cameraX=player.x-W*.38;
+ cameraX=Math.max(0,Math.min(worldW-W,cameraX));
+}
+
+function cloud(x,y,s){
+ ctx.fillStyle="#fff";
+ ctx.beginPath();
+ ctx.arc(x,y,22*s,0,Math.PI*2);
+ ctx.arc(x+28*s,y-8*s,28*s,0,Math.PI*2);
+ ctx.arc(x+60*s,y,22*s,0,Math.PI*2);
+ ctx.fill();
+}
+
+function drawPlayer(){
+ const x=player.x-cameraX;
+ const y=player.y;
+
+ ctx.save();
+
+ // legs
+ ctx.fillStyle="#345995";
+ ctx.fillRect(x+6,y+34,9,18);
+ ctx.fillRect(x+20,y+34,9,18);
+
+ // shirt
+ ctx.fillStyle="#f5f5f5";
+ ctx.fillRect(x+5,y+17,25,21);
+
+ // arms
+ ctx.fillStyle="#a76b45";
+ ctx.fillRect(x,y+20,6,15);
+ ctx.fillRect(x+29,y+20,6,15);
+
+ // face
+ ctx.fillStyle="#a76b45";
+ ctx.fillRect(x+8,y+4,19,17);
+
+ // curly hair
+ ctx.fillStyle="#201914";
+ for(let i=0;i<5;i++){
+  ctx.beginPath();
+  ctx.arc(x+9+i*4.2,y+5,5,0,Math.PI*2);
+  ctx.fill();
+ }
+
+ // backwards black hat
+ ctx.fillStyle="#111";
+ ctx.fillRect(x+6,y,23,6);
+ ctx.fillRect(x+3,y+2,7,4);
+
+ ctx.restore();
+}
+
+function draw(){
+ ctx.clearRect(0,0,W,H);
+
+ // sky
+ ctx.fillStyle="#7ed6ff";
+ ctx.fillRect(0,0,W,H);
+
+ // sun
+ ctx.fillStyle="#ffe66d";
+ ctx.beginPath();
+ ctx.arc(W-80,80,38,0,Math.PI*2);
+ ctx.fill();
+
+ // clouds
+ cloud(120-cameraX*.15,90,1);
+ cloud(620-cameraX*.15,125,.8);
+ cloud(1100-cameraX*.15,75,1.1);
+ cloud(1700-cameraX*.15,115,.9);
+
+ // distant hills
+ ctx.fillStyle="#7ac66c";
+ ctx.beginPath();
+ ctx.moveTo(0,H);
+ for(let x=0;x<W+200;x+=180){
+  ctx.quadraticCurveTo(x+90,H-220,x+180,H);
+ }
+ ctx.fill();
+
+ // platforms
+ for(const p of platforms){
+  const x=p.x-cameraX;
+  ctx.fillStyle="#7b4f2c";
+  ctx.fillRect(x,p.y,p.w,p.h);
+  ctx.fillStyle="#4caf50";
+  ctx.fillRect(x,p.y,p.w,14);
+ }
+
+ // coins
+ for(const c of coinList){
+  if(c.taken)continue;
+  const x=c.x-cameraX;
+  ctx.fillStyle="#ffd700";
+  ctx.beginPath();
+  ctx.arc(x,c.y,11,0,Math.PI*2);
+  ctx.fill();
+  ctx.strokeStyle="#b8860b";
+  ctx.lineWidth=3;
+  ctx.stroke();
+ }
+
+ // goal flag
+ let gx=goal.x-cameraX;
+ ctx.fillStyle="#333";
+ ctx.fillRect(gx,goal.y,6,goal.h);
+ ctx.fillStyle="#111";
+ ctx.beginPath();
+ ctx.moveTo(gx+6,goal.y+10);
+ ctx.lineTo(gx+65,goal.y+30);
+ ctx.lineTo(gx+6,goal.y+50);
+ ctx.closePath();
+ ctx.fill();
+
+ ctx.fillStyle="#fff";
+ ctx.font="bold 16px Arial";
+ ctx.fillText("MAGEE",gx+12,goal.y+34);
+
+ drawPlayer();
+
+ // HUD
+ ctx.fillStyle="#0009";
+ ctx.fillRect(12,12,125,38);
+ ctx.fillStyle="#fff";
+ ctx.font="bold 18px Arial";
+ ctx.fillText("COINS: "+coins,28,38);
+
+ if(won){
+  ctx.fillStyle="#000b";
+  ctx.fillRect(0,0,W,H);
+
+  ctx.fillStyle="#fff";
+  ctx.textAlign="center";
+  ctx.font="bold 34px Arial";
+  ctx.fillText("LEVEL 1 COMPLETE!",W/2,H/2-30);
+
+  ctx.font="20px Arial";
+  ctx.fillText("Magee made it!",W/2,H/2+10);
+
+  ctx.font="17px Arial";
+  ctx.fillText("Refresh the page to play again",W/2,H/2+50);
+
+  ctx.textAlign="left";
+ }
+}
+
+function loop(){
+ update();
+ draw();
+ requestAnimationFrame(loop);
+}
+loop();
+</script>
+</body>
+</html>
