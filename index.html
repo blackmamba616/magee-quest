@@ -665,68 +665,114 @@
     ctx.fillText('M',x+29,goal.y+41);
   }
 
-  function drawPlayer(){
-    if(player.invuln>0&&Math.floor(player.invuln/6)%2===0) return;
+ function drawPlayer(){
+  if(player.invuln > 0 && Math.floor(player.invuln / 6) % 2 === 0) return;
 
-    const x=player.x-cameraX;
-    const y=player.y;
+  const x = player.x - cameraX;
+  const y = player.y;
 
-    ctx.save();
+  const moving = Math.abs(player.vx) > 0.35;
+  const inAir = !player.onGround;
+  const celebrating = state === 'won';
 
-    if(player.facing<0){
-      ctx.translate(x+player.w/2,y);
-      ctx.scale(-1,1);
-      ctx.translate(-(x+player.w/2),-y);
-    }
+  const frame = Math.floor(Date.now() / 140) % 2;
 
-    // shoes
-    ctx.fillStyle='#111827';
-    ctx.fillRect(x+4,y+39,12,7);
-    ctx.fillRect(x+20,y+39,12,7);
+  const bodyBob = celebrating ? -2 : inAir ? -2 : moving ? (frame === 0 ? -1 : 1) : 0;
+  const armSwing = celebrating ? -4 : inAir ? -2 : moving ? (frame === 0 ? 3 : -3) : 0;
+  const legSwing = celebrating ? 2 : inAir ? 1 : moving ? (frame === 0 ? 2 : -2) : 0;
 
-    // jeans
-    ctx.fillStyle='#2563eb';
-    ctx.fillRect(x+7,y+29,9,13);
-    ctx.fillRect(x+19,y+29,9,13);
+  ctx.save();
+  ctx.translate(Math.round(x + player.w / 2), Math.round(y + player.h));
+  if(player.facing < 0) ctx.scale(-1, 1);
+  ctx.translate(-24, -68 + bodyBob);
 
-    // shirt
-    ctx.fillStyle='#fff';
-    ctx.fillRect(x+5,y+17,25,16);
+  const u = 4;
 
-    // small Magee-style shirt mark
-    ctx.fillStyle='#111827';
-    ctx.fillRect(x+14,y+21,3,7);
-    ctx.fillRect(x+20,y+21,3,7);
-    ctx.fillRect(x+16,y+26,6,3);
+  const rect = (gx, gy, gw, gh, color) => {
+    ctx.fillStyle = color;
+    ctx.fillRect(
+      Math.round(gx * u),
+      Math.round(gy * u),
+      Math.round(gw * u),
+      Math.round(gh * u)
+    );
+  };
 
-    // arms
-    ctx.fillStyle='#a7643f';
-    ctx.fillRect(x,y+20,6,13);
-    ctx.fillRect(x+29,y+20,6,13);
+  // shadow
+  ctx.fillStyle = "rgba(0,0,0,.22)";
+  ctx.beginPath();
+  ctx.ellipse(24, 65, 13, 5, 0, 0, Math.PI * 2);
+  ctx.fill();
 
-    // head
-    ctx.fillStyle='#a7643f';
-    ctx.fillRect(x+8,y+5,20,16);
+  // black backwards hat
+  rect(4, 0, 7, 1, "#111827");
+  rect(5, 1, 6, 2, "#111827");
+  rect(10, 2, 2, 1, "#374151");
+  rect(3, 1, 2, 1, "#111827");
 
-    // hair
-    ctx.fillStyle='#2b1a12';
-    for(let i=0;i<5;i++){
-      ctx.beginPath();
-      ctx.arc(x+10+i*4,y+6,5,0,Math.PI*2);
-      ctx.fill();
-    }
+  // short curly hair
+  rect(5, 3, 5, 1, "#2b1d14");
+  rect(4, 4, 1, 1, "#2b1d14");
+  rect(5, 4, 1, 1, "#2b1d14");
+  rect(7, 4, 1, 1, "#2b1d14");
+  rect(9, 4, 1, 1, "#2b1d14");
 
-    // backwards black hat
-    ctx.fillStyle='#111827';
-    ctx.fillRect(x+6,y,24,7);
-    ctx.fillRect(x+2,y+4,9,4);
+  // face
+  rect(5, 4, 5, 4, "#a56a43");
+  rect(4, 5, 1, 2, "#a56a43");
+  rect(10, 5, 1, 2, "#a56a43");
 
-    // eye
-    ctx.fillStyle='#111';
-    ctx.fillRect(x+23,y+11,3,4);
+  // eyes
+  rect(6, 5, 1, 1, "#111827");
+  rect(8, 5, 1, 1, "#111827");
 
-    ctx.restore();
+  // mouth
+  rect(7, 7, 1, 1, "#7c4a2f");
+
+  // neck
+  rect(6, 8, 2, 1, "#a56a43");
+
+  // white shirt
+  rect(4, 9, 7, 4, "#f8fafc");
+  rect(6, 9, 2, 1, "#dbeafe");
+
+  // M logo
+  rect(6, 10, 1, 2, "#111827");
+  rect(8, 10, 1, 2, "#111827");
+  rect(7, 11, 1, 1, "#111827");
+
+  // arms
+  rect(2 + armSwing * 0.15, 9, 2, 4, "#a56a43");
+  rect(3 + armSwing * 0.15, 9, 1, 1, "#f8fafc");
+
+  rect(11 - armSwing * 0.15, 9, 2, 4, "#a56a43");
+  rect(11 - armSwing * 0.15, 9, 1, 1, "#f8fafc");
+
+  // waist
+  rect(4, 13, 7, 1, "#1e3a8a");
+
+  // jeans
+  rect(5, 14, 2, 3, "#2563eb");
+  rect(8, 14, 2, 3, "#2563eb");
+
+  // animated legs
+  rect(5 + legSwing * 0.2, 16, 2, 2, "#2563eb");
+  rect(8 - legSwing * 0.2, 16, 2, 2, "#2563eb");
+
+  // black shoes
+  rect(4 + legSwing * 0.35, 18, 3, 1, "#111827");
+  rect(8 - legSwing * 0.35, 18, 3, 1, "#111827");
+
+  // celebration pose
+  if(celebrating){
+    rect(1, 6, 2, 4, "#a56a43");
+    rect(12, 6, 2, 4, "#a56a43");
   }
+
+  ctx.restore();
+}
+
+
 
   function drawHUD(){
     ctx.fillStyle='rgba(15,23,42,.75)';
